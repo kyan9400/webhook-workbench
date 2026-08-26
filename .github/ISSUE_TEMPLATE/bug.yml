@@ -1,0 +1,31 @@
+name: Bug report
+description: Report a reproducible problem.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not attach real payloads, tokens, cookies, or customer data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the expected and actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and operating system
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Sanitized context

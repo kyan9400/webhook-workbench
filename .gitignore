@@ -1,0 +1,9 @@
+bin/
+dist/
+coverage.out
+*.exe
+/webhook-workbench
+*.log
+data/*.json
+.env
+.DS_Store

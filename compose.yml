@@ -1,0 +1,26 @@
+services:
+  workbench:
+    build:
+      context: .
+    image: webhook-workbench:1.0.0
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      WEBHOOK_WORKBENCH_TOKEN: ${WEBHOOK_WORKBENCH_TOKEN:-}
+      WEBHOOK_WORKBENCH_RETENTION: 200
+      WEBHOOK_WORKBENCH_MAX_BODY: 1048576
+    volumes:
+      - workbench-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 128m
+    cpus: 0.50
+    restart: unless-stopped
+
+volumes:
+  workbench-data:
