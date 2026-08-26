@@ -1,0 +1,29 @@
+FROM golang:1.27.0-alpine3.23 AS build
+
+WORKDIR /src
+COPY go.mod ./
+COPY cmd ./cmd
+COPY internal ./internal
+
+ARG VERSION=vercel-sandbox
+ARG COMMIT=none
+ARG BUILD_DATE=unknown
+RUN CGO_ENABLED=0 go build \
+    -trimpath \
+    -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}" \
+    -o /out/webhook-workbench ./cmd/webhook-workbench
+
+FROM alpine:3.24.1
+
+RUN addgroup -S -g 10001 workbench \
+    && adduser -S -D -H -u 10001 -G workbench workbench
+WORKDIR /app
+COPY --from=build --chown=workbench:workbench /out/webhook-workbench /usr/local/bin/webhook-workbench
+
+USER 10001:10001
+EXPOSE 8080
+ENV PORT=8080 \
+    WEBHOOK_WORKBENCH_DATA=/tmp/events.json \
+    WEBHOOK_WORKBENCH_RETENTION=100 \
+    WEBHOOK_WORKBENCH_ALLOW_PRIVATE_REPLAY=false
+CMD ["sh", "-c", "export WEBHOOK_WORKBENCH_LISTEN=0.0.0.0:${PORT}; exec webhook-workbench"]

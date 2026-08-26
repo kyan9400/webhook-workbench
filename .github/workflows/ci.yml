@@ -63,6 +63,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build Vercel image
+        run: docker build --file Dockerfile.vercel --tag webhook-workbench:vercel .
+
+      - name: Inspect Vercel runtime user
+        run: test "$(docker run --rm --entrypoint=id webhook-workbench:vercel -u)" != "0"
+
       - name: Scan image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
