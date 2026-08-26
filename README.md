@@ -8,6 +8,10 @@ A private, self-hosted workbench for capturing and inspecting webhook requests. 
 
 ![Webhook Workbench request inspection interface](docs/webhook-workbench.png)
 
+## Live demo
+
+[Open Webhook Workbench](https://webhook-workbench.vercel.app/) — a public sandbox for capturing and inspecting test requests. Captured events can reset when the Vercel container scales down; use the Docker deployment below for private, durable storage.
+
 ## What it does
 
 - captures any HTTP method at `/inbox/{channel}`;
