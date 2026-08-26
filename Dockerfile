@@ -1,4 +1,4 @@
-FROM golang:1.26.2-alpine3.23 AS build
+FROM golang:1.27.0-alpine3.23 AS build
 
 WORKDIR /src
 COPY go.mod ./
@@ -13,7 +13,7 @@ RUN CGO_ENABLED=0 go build \
     -ldflags="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}" \
     -o /out/webhook-workbench ./cmd/webhook-workbench
 
-FROM alpine:3.23.3
+FROM alpine:3.24.1
 
 RUN addgroup -S -g 10001 workbench && \
     adduser -S -D -H -u 10001 -G workbench workbench && \
