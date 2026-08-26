@@ -125,6 +125,7 @@ func TestReplayForwardsCapturedRequest(t *testing.T) {
 		body          string
 		trace         string
 		authorization string
+		signature     string
 	}
 	received := make(chan receivedRequest, 1)
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +138,7 @@ func TestReplayForwardsCapturedRequest(t *testing.T) {
 			body:          string(body),
 			trace:         r.Header.Get("X-Trace-Id"),
 			authorization: r.Header.Get("Authorization"),
+			signature:     r.Header.Get("X-Hub-Signature-256"),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -151,9 +153,10 @@ func TestReplayForwardsCapturedRequest(t *testing.T) {
 	if err := events.Add(store.Event{
 		ID: "replay-one", Method: http.MethodPatch, Body: `{"id":42}`, BodyEncoding: "utf-8",
 		Headers: map[string][]string{
-			"Content-Type":  {"application/json"},
-			"X-Trace-Id":    {"trace-42"},
-			"Authorization": {"[REDACTED]"},
+			"Content-Type":        {"application/json"},
+			"X-Trace-Id":          {"trace-42"},
+			"Authorization":       {"[REDACTED]"},
+			"X-Hub-Signature-256": {"sha256=old-signature"},
 		},
 	}); err != nil {
 		t.Fatal(err)
@@ -178,6 +181,9 @@ func TestReplayForwardsCapturedRequest(t *testing.T) {
 	}
 	if gotRequest.authorization != "" {
 		t.Fatalf("sensitive header was replayed: %q", gotRequest.authorization)
+	}
+	if gotRequest.signature != "" {
+		t.Fatalf("provider signature was replayed: %q", gotRequest.signature)
 	}
 	var got replayResponse
 	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {

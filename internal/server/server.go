@@ -187,6 +187,10 @@ func (s *Server) event(w http.ResponseWriter, r *http.Request) {
 		s.replayEvent(w, r, parts[0])
 		return
 	}
+	if len(parts) == 2 && parts[0] != "" && parts[1] == "verify" {
+		s.verifyEvent(w, r, parts[0])
+		return
+	}
 	if len(parts) != 1 || parts[0] == "" {
 		http.NotFound(w, r)
 		return

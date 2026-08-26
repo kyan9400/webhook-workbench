@@ -2,6 +2,20 @@
 
 All notable changes are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-08-26
+
+### Added
+
+- GitHub `X-Hub-Signature-256` verification against the exact captured body.
+- Stripe `Stripe-Signature` verification with multiple v1 digests and a receipt-time tolerance.
+- Configurable generic HMAC-SHA-256 verification for other webhook providers.
+- In-app verification results with ephemeral secrets that are never stored.
+
+### Security
+
+- Reject verification for truncated captures and oversized or malformed verification requests.
+- Strip GitHub and Stripe signature headers from server-side replays.
+
 ## [1.1.0] - 2026-08-26
 
 ### Added
@@ -26,4 +40,5 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 - Health checks, graceful shutdown, hardened container configuration, and release automation.
 
 [1.1.0]: https://github.com/kyan9400/webhook-workbench/compare/v1.0.0...v1.1.0
+[1.2.0]: https://github.com/kyan9400/webhook-workbench/compare/v1.1.0...v1.2.0
 [1.0.0]: https://github.com/kyan9400/webhook-workbench/releases/tag/v1.0.0

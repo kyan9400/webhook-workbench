@@ -12,6 +12,7 @@ A private, self-hosted workbench for capturing and inspecting webhook requests. 
 
 - captures any HTTP method at `/inbox/{channel}`;
 - shows live request traffic, decoded payloads, redacted headers, and reproducible cURL commands;
+- verifies GitHub, Stripe, and generic HMAC-SHA-256 signatures against the exact captured body;
 - safely replays captured requests to a chosen HTTP endpoint and previews the response;
 - persists a bounded event history to a local JSON snapshot;
 - redacts authorization, cookie, API key, and auth-token headers before storage;
@@ -76,6 +77,20 @@ Flags take precedence over environment defaults. `--version` prints build metada
 
 Replay is conservative by default: private, loopback, link-local, and non-HTTP targets are rejected. DNS is checked again when the connection is opened, redirects are limited, proxy environment variables are ignored, and authorization, cookie, forwarding, and hop-by-hop headers are stripped. Private-network replay is available only through the explicit opt-in above.
 
+## Signature verification
+
+Select a captured request and choose **Verify signature**. The workbench supports:
+
+| Profile | Captured header | Signed payload |
+| --- | --- | --- |
+| GitHub | `X-Hub-Signature-256` | Raw body with HMAC-SHA-256 |
+| Stripe | `Stripe-Signature` | Timestamp, period, and raw body with a five-minute receipt window |
+| Generic | Configurable | Raw body with an optional digest prefix |
+
+The secret is used for one verification request and is never written to disk or browser storage. Provider signature headers remain in the local event snapshot so they can be checked, but they are stripped from replayed requests. Truncated captures cannot be verified because they no longer contain the exact provider payload.
+
+![Webhook Workbench signature verification](docs/webhook-signature-verification.png)
+
 ## API
 
 | Method | Route | Description |
@@ -84,6 +99,7 @@ Replay is conservative by default: private, loopback, link-local, and non-HTTP t
 | `GET` | `/api/events?channel=` | List event summaries |
 | `GET` | `/api/events/{id}` | Read an event |
 | `POST` | `/api/events/{id}/replay` | Replay an event to `{"targetUrl":"https://…"}` |
+| `POST` | `/api/events/{id}/verify` | Verify a provider signature with an ephemeral secret |
 | `DELETE` | `/api/events/{id}` | Delete an event |
 | `DELETE` | `/api/events` | Clear all events |
 | `GET` | `/api/config` | Read non-sensitive UI configuration |
@@ -101,7 +117,7 @@ go vet ./...
 go build ./cmd/webhook-workbench
 ```
 
-The service uses only the Go standard library. Tests cover persistence, retention, defensive copying, authentication, redaction, truncation, binary bodies, validation, event APIs, replay behavior, SSRF defenses, and security headers.
+The service uses only the Go standard library. Tests cover persistence, retention, defensive copying, authentication, redaction, truncation, binary bodies, validation, GitHub/Stripe/generic signature verification, event APIs, replay behavior, SSRF defenses, and security headers.
 
 ## Operations and rollback
 

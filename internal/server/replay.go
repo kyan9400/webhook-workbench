@@ -29,6 +29,7 @@ var replayHeadersToDrop = map[string]struct{}{
 	"keep-alive":          {},
 	"proxy-authenticate":  {},
 	"proxy-authorization": {},
+	"stripe-signature":    {},
 	"te":                  {},
 	"trailer":             {},
 	"transfer-encoding":   {},
@@ -36,6 +37,7 @@ var replayHeadersToDrop = map[string]struct{}{
 	"x-forwarded-for":     {},
 	"x-forwarded-host":    {},
 	"x-forwarded-proto":   {},
+	"x-hub-signature-256": {},
 }
 
 type replayRequest struct {
@@ -186,7 +188,7 @@ func (s *Server) replayEvent(w http.ResponseWriter, r *http.Request, id string) 
 		return
 	}
 	copyReplayHeaders(request.Header, event.Headers)
-	request.Header.Set("User-Agent", "Webhook-Workbench-Replay/1.1")
+	request.Header.Set("User-Agent", "Webhook-Workbench-Replay/1.2")
 	request.Header.Set("X-Webhook-Workbench-Replay", event.ID)
 
 	started := time.Now()
