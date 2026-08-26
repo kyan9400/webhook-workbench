@@ -32,21 +32,26 @@ var sensitiveHeaders = map[string]struct{}{
 }
 
 type Config struct {
-	Store       *store.Store
-	Token       string
-	MaxBody     int64
-	Logger      *slog.Logger
-	Now         func() time.Time
-	IDGenerator func() (string, error)
+	Store              *store.Store
+	Token              string
+	MaxBody            int64
+	Logger             *slog.Logger
+	Now                func() time.Time
+	IDGenerator        func() (string, error)
+	ReplayClient       *http.Client
+	ReplayTimeout      time.Duration
+	AllowPrivateReplay bool
 }
 
 type Server struct {
-	store       *store.Store
-	token       string
-	maxBody     int64
-	logger      *slog.Logger
-	now         func() time.Time
-	idGenerator func() (string, error)
+	store              *store.Store
+	token              string
+	maxBody            int64
+	logger             *slog.Logger
+	now                func() time.Time
+	idGenerator        func() (string, error)
+	replayClient       *http.Client
+	allowPrivateReplay bool
 }
 
 func New(config Config) (*Server, error) {
@@ -65,9 +70,16 @@ func New(config Config) (*Server, error) {
 	if config.IDGenerator == nil {
 		config.IDGenerator = randomID
 	}
+	if config.ReplayTimeout <= 0 {
+		config.ReplayTimeout = 8 * time.Second
+	}
+	if config.ReplayClient == nil {
+		config.ReplayClient = newReplayClient(config.AllowPrivateReplay, config.ReplayTimeout)
+	}
 	return &Server{
 		store: config.Store, token: config.Token, maxBody: config.MaxBody,
 		logger: config.Logger, now: config.Now, idGenerator: config.IDGenerator,
+		replayClient: config.ReplayClient, allowPrivateReplay: config.AllowPrivateReplay,
 	}, nil
 }
 
@@ -111,7 +123,10 @@ func (s *Server) serveConfig(w http.ResponseWriter, r *http.Request) {
 		methodNotAllowed(w, http.MethodGet)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"authRequired": s.token != "", "maxBody": s.maxBody})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authRequired": s.token != "", "maxBody": s.maxBody,
+		"privateReplayAllowed": s.allowPrivateReplay,
+	})
 }
 
 func (s *Server) capture(w http.ResponseWriter, r *http.Request) {
@@ -167,11 +182,16 @@ func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) event(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/api/events/")
-	if id == "" || strings.Contains(id, "/") {
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/events/"), "/")
+	if len(parts) == 2 && parts[0] != "" && parts[1] == "replay" {
+		s.replayEvent(w, r, parts[0])
+		return
+	}
+	if len(parts) != 1 || parts[0] == "" {
 		http.NotFound(w, r)
 		return
 	}
+	id := parts[0]
 	switch r.Method {
 	case http.MethodGet:
 		event, err := s.store.Get(id)

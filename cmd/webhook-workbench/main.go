@@ -25,12 +25,13 @@ var (
 )
 
 type options struct {
-	listen    string
-	data      string
-	token     string
-	retention int
-	maxBody   int64
-	show      bool
+	listen             string
+	data               string
+	token              string
+	retention          int
+	maxBody            int64
+	allowPrivateReplay bool
+	show               bool
 }
 
 func main() {
@@ -54,6 +55,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	flags.StringVar(&defaults.token, "token", defaults.token, "optional bearer token for inbox and API routes")
 	flags.IntVar(&defaults.retention, "retention", defaults.retention, "maximum events to retain")
 	flags.Int64Var(&defaults.maxBody, "max-body", defaults.maxBody, "maximum captured body size in bytes")
+	flags.BoolVar(&defaults.allowPrivateReplay, "allow-private-replay", defaults.allowPrivateReplay, "allow replay targets on private and local networks")
 	flags.BoolVar(&defaults.show, "version", false, "print version information")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -71,7 +73,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return fmt.Errorf("open event store: %w", err)
 	}
 	logger := slog.New(slog.NewJSONHandler(stdout, nil))
-	application, err := appserver.New(appserver.Config{Store: events, Token: defaults.token, MaxBody: defaults.maxBody, Logger: logger})
+	application, err := appserver.New(appserver.Config{
+		Store: events, Token: defaults.token, MaxBody: defaults.maxBody, Logger: logger,
+		AllowPrivateReplay: defaults.allowPrivateReplay,
+	})
 	if err != nil {
 		return err
 	}
@@ -83,7 +88,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	}
 	errorsChannel := make(chan error, 1)
 	go func() {
-		logger.Info("webhook workbench ready", "listen", defaults.listen, "retention", defaults.retention, "maxBody", defaults.maxBody, "authentication", defaults.token != "")
+		logger.Info("webhook workbench ready", "listen", defaults.listen, "retention", defaults.retention, "maxBody", defaults.maxBody, "authentication", defaults.token != "", "privateReplay", defaults.allowPrivateReplay)
 		errorsChannel <- httpServer.ListenAndServe()
 	}()
 
@@ -127,6 +132,13 @@ func environmentDefaults() (options, error) {
 			return options{}, fmt.Errorf("invalid WEBHOOK_WORKBENCH_MAX_BODY: %w", err)
 		}
 		defaults.maxBody = parsed
+	}
+	if value := os.Getenv("WEBHOOK_WORKBENCH_ALLOW_PRIVATE_REPLAY"); value != "" {
+		parsed, err := strconv.ParseBool(value)
+		if err != nil {
+			return options{}, fmt.Errorf("invalid WEBHOOK_WORKBENCH_ALLOW_PRIVATE_REPLAY: %w", err)
+		}
+		defaults.allowPrivateReplay = parsed
 	}
 	return defaults, nil
 }

@@ -119,6 +119,96 @@ func TestEventAPI(t *testing.T) {
 	}
 }
 
+func TestReplayForwardsCapturedRequest(t *testing.T) {
+	type receivedRequest struct {
+		method        string
+		body          string
+		trace         string
+		authorization string
+	}
+	received := make(chan receivedRequest, 1)
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read replay body: %v", err)
+		}
+		received <- receivedRequest{
+			method:        r.Method,
+			body:          string(body),
+			trace:         r.Header.Get("X-Trace-Id"),
+			authorization: r.Header.Get("Authorization"),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"accepted":true}`))
+	}))
+	defer target.Close()
+
+	events, err := store.New("", 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := events.Add(store.Event{
+		ID: "replay-one", Method: http.MethodPatch, Body: `{"id":42}`, BodyEncoding: "utf-8",
+		Headers: map[string][]string{
+			"Content-Type":  {"application/json"},
+			"X-Trace-Id":    {"trace-42"},
+			"Authorization": {"[REDACTED]"},
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server, err := New(Config{
+		Store: events, MaxBody: 1024, AllowPrivateReplay: true,
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	requestBody := strings.NewReader(`{"targetUrl":"` + target.URL + `/receiver"}`)
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/events/replay-one/replay", requestBody))
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.Code, response.Body.String())
+	}
+	gotRequest := <-received
+	if gotRequest.method != http.MethodPatch || gotRequest.body != `{"id":42}` || gotRequest.trace != "trace-42" {
+		t.Fatalf("unexpected replay request: %#v", gotRequest)
+	}
+	if gotRequest.authorization != "" {
+		t.Fatalf("sensitive header was replayed: %q", gotRequest.authorization)
+	}
+	var got replayResponse
+	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.StatusCode != http.StatusCreated || got.Body != `{"accepted":true}` || got.BodyEncoding != "utf-8" {
+		t.Fatalf("unexpected replay response: %#v", got)
+	}
+}
+
+func TestReplayBlocksUnsafeTargets(t *testing.T) {
+	server, events := testServer(t, "", 1024)
+	if err := events.Add(store.Event{ID: "blocked", Method: http.MethodPost, Headers: map[string][]string{}}); err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []string{
+		`{"targetUrl":"http://127.0.0.1:9999/callback"}`,
+		`{"targetUrl":"ftp://example.com/callback"}`,
+		`{"targetUrl":"https://user:password@example.com/callback"}`,
+	}
+	for _, body := range tests {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/api/events/blocked/replay", strings.NewReader(body))
+		server.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("%s: expected 400, got %d: %s", body, response.Code, response.Body.String())
+		}
+	}
+}
+
 func TestValidationHealthAndSecurityHeaders(t *testing.T) {
 	server, _ := testServer(t, "", 1024)
 	for _, path := range []string{"/inbox/", "/inbox/not/valid", "/inbox/$bad"} {

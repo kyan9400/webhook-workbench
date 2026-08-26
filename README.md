@@ -12,6 +12,7 @@ A private, self-hosted workbench for capturing and inspecting webhook requests. 
 
 - captures any HTTP method at `/inbox/{channel}`;
 - shows live request traffic, decoded payloads, redacted headers, and reproducible cURL commands;
+- safely replays captured requests to a chosen HTTP endpoint and previews the response;
 - persists a bounded event history to a local JSON snapshot;
 - redacts authorization, cookie, API key, and auth-token headers before storage;
 - supports optional constant-time bearer-token authentication;
@@ -69,8 +70,11 @@ If traffic crosses a network, put the service behind a TLS-terminating reverse p
 | `--token` | `WEBHOOK_WORKBENCH_TOKEN` | empty | Bearer token for inbox and API routes |
 | `--retention` | `WEBHOOK_WORKBENCH_RETENTION` | `200` | Maximum retained events |
 | `--max-body` | `WEBHOOK_WORKBENCH_MAX_BODY` | `1048576` | Maximum stored body bytes |
+| `--allow-private-replay` | `WEBHOOK_WORKBENCH_ALLOW_PRIVATE_REPLAY` | `false` | Permit replay to private and local network addresses |
 
 Flags take precedence over environment defaults. `--version` prints build metadata.
+
+Replay is conservative by default: private, loopback, link-local, and non-HTTP targets are rejected. DNS is checked again when the connection is opened, redirects are limited, proxy environment variables are ignored, and authorization, cookie, forwarding, and hop-by-hop headers are stripped. Private-network replay is available only through the explicit opt-in above.
 
 ## API
 
@@ -79,6 +83,7 @@ Flags take precedence over environment defaults. `--version` prints build metada
 | `ANY` | `/inbox/{channel}` | Capture a request |
 | `GET` | `/api/events?channel=` | List event summaries |
 | `GET` | `/api/events/{id}` | Read an event |
+| `POST` | `/api/events/{id}/replay` | Replay an event to `{"targetUrl":"https://…"}` |
 | `DELETE` | `/api/events/{id}` | Delete an event |
 | `DELETE` | `/api/events` | Clear all events |
 | `GET` | `/api/config` | Read non-sensitive UI configuration |
@@ -96,7 +101,7 @@ go vet ./...
 go build ./cmd/webhook-workbench
 ```
 
-The service uses only the Go standard library. Tests cover persistence, retention, defensive copying, authentication, redaction, truncation, binary bodies, validation, event APIs, and security headers.
+The service uses only the Go standard library. Tests cover persistence, retention, defensive copying, authentication, redaction, truncation, binary bodies, validation, event APIs, replay behavior, SSRF defenses, and security headers.
 
 ## Operations and rollback
 
