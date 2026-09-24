@@ -6,4 +6,6 @@ coverage.out
 *.log
 data/*.json
 .env
+.env.*
+!.env.example
 .DS_Store

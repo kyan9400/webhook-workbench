@@ -2,7 +2,7 @@ services:
   workbench:
     build:
       context: .
-    image: webhook-workbench:1.1.0
+    image: webhook-workbench:1.2.0
     ports:
       - "127.0.0.1:8080:8080"
     environment:
